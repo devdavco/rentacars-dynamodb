@@ -1,23 +1,23 @@
 package com.rentacars.model;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
 import lombok.*;
+import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbAttribute;
+import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbBean;
+import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbPartitionKey;
+import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbSecondaryPartitionKey;
 
 /**
- * Tabla "categorias". Clasifica los autos (SUV, Sedan, Camioneta...).
+ * Tabla DynamoDB "categorias". Clasifica los autos (SUV, Sedan, Camioneta...).
  *
- * OJO HU-06: la columna nombre NO tiene restriccion UNIQUE en la base de datos.
- * La regla "no se pueden registrar dos categorias con el mismo nombre" hay que
- * validarla en CategoriaServiceImpl con existsByNombre(), lanzando
- * BadRequestException. Si se deja solo a la BD, no se cumple.
+ *   PK:  id_categoria (N)
+ *   GSI: nombre-index -> PK nombre (S)
+ *
+ * OJO HU-06: el nombre NO es unico a nivel de base de datos (igual que en
+ * PostgreSQL). La regla "no se pueden registrar dos categorias con el mismo
+ * nombre" la valida CategoriaServiceImpl con existsByNombre(), que consulta
+ * el indice nombre-index.
  */
-@Entity
-@Table(name = "categorias")
+@DynamoDbBean
 @Getter
 @Setter
 @NoArgsConstructor
@@ -25,15 +25,11 @@ import lombok.*;
 @Builder
 public class Categoria {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id_categoria")
+    @Getter(onMethod_ = {@DynamoDbPartitionKey, @DynamoDbAttribute("id_categoria")})
     private Long idCategoria;
 
-    @Column(nullable = false, length = 50)
+    @Getter(onMethod_ = @DynamoDbSecondaryPartitionKey(indexNames = "nombre-index"))
     private String nombre;
 
-    // En PostgreSQL es TEXT (sin limite de longitud)
-    @Column(nullable = false, columnDefinition = "TEXT")
     private String descripcion;
 }

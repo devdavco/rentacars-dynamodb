@@ -1,7 +1,41 @@
 services:
+  # DynamoDB Local: emulador oficial de AWS para probar sin cuenta.
+  # Consola de prueba:  aws dynamodb list-tables --endpoint-url http://localhost:8000
+  dynamodb-local:
+    image: amazon/dynamodb-local:latest
+    container_name: dynamodb-local-alquilerautos
+    # La imagen corre como un usuario sin permisos de escritura sobre el
+    # volumen montado en /home/dynamodblocal/data; con root se evita el
+    # error "unable to open database file".
+    user: root
+    command: "-jar DynamoDBLocal.jar -sharedDb -dbPath /home/dynamodblocal/data"
+    working_dir: /home/dynamodblocal
+    ports:
+      - "8000:8000"
+    volumes:
+      - dynamodata:/home/dynamodblocal/data
+
+  microservicio:
+    build: .
+    container_name: rentacars-dynamo-microservicio
+    ports:
+      - "8080:8080"
+    environment:
+      AWS_REGION: us-east-1
+      AWS_DYNAMODB_ENDPOINT: http://dynamodb-local:8000
+      # Credenciales falsas: DynamoDB Local no las valida, pero el SDK exige que existan.
+      # En AWS real NO se ponen aqui: se usa el rol de la maquina o AWS_PROFILE.
+      AWS_ACCESS_KEY_ID: local
+      AWS_SECRET_ACCESS_KEY: local
+    depends_on:
+      - dynamodb-local
+
+  # PostgreSQL original: SOLO como origen del script de migracion.
+  # Se levanta con:  docker compose --profile migracion up -d postgres
   postgres:
     image: postgres:16-alpine
-    container_name: postgres-alquilerautos
+    container_name: postgres-alquilerautos-migracion
+    profiles: ["migracion"]
     environment:
       POSTGRES_DB: alquilerautos_db
       POSTGRES_USER: cloud_usr
@@ -16,16 +50,6 @@ services:
       interval: 5s
       retries: 5
 
-  microservicio:
-    build: .
-    container_name: claude-microservicio-v2
-    ports:
-      - "8080:8080"
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/alquilerautos_db
-    depends_on:
-      postgres:
-        condition: service_healthy
-
 volumes:
+  dynamodata:
   pgdata:

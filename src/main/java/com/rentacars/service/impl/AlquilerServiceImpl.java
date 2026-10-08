@@ -14,7 +14,6 @@ import com.rentacars.service.AutoService;
 import com.rentacars.service.ClienteService;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -48,14 +47,13 @@ public class AlquilerServiceImpl implements AlquilerService {
     //
     // Corregido: la version anterior no validaba que el cliente existiera ni que el auto
     // estuviera disponible, dejaba que el cliente inventara precio_total y estado, y nunca
-    // marcaba el auto como no disponible. Ahora, en una sola transaccion:
+    // marcaba el auto como no disponible. Ahora:
     //   1. Valida que el cliente exista (404) -- clienteService.obtenerCliente(id).
     //   2. Obtiene el detalle del auto (404 si no existe) y valida que este disponible (400).
     //   3. Valida que fecha_inicio sea posterior a hoy (400).
     //   4. Calcula precio_total = dias * precio_dia * (1 - oferta/100).
     //   5. Guarda el alquiler y marca el auto como no disponible.
     @Override
-    @Transactional
     public CreateAlquilerResponse createAlquiler(CreateAlquilerRequest createAlquilerRequest) throws Exception {
 
         clienteService.obtenerCliente(createAlquilerRequest.getIdCliente());
@@ -113,7 +111,6 @@ public class AlquilerServiceImpl implements AlquilerService {
     // Cierra el alquiler (estado = CERRADO) y libera el auto inyectando AutoService
     // (Cambio v2: antes hubiera sido CatalogoFeignClient).
     @Override
-    @Transactional
     public CreateAlquilerResponse registrarDevolucion(Long id) {
         Alquiler alquiler = alquilerRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Alquiler no encontrado con id " + id));
@@ -129,7 +126,6 @@ public class AlquilerServiceImpl implements AlquilerService {
     //metodo para eliminar alquiler
     // HU-22 (Cardona): cancela y libera el auto
     @Override
-    @Transactional // agrupa borrado y liberar auto
     public void deleteAlquiler(Long id) {
 
         //busca alquiler por id, 404 si no existe

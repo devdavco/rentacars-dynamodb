@@ -12,7 +12,6 @@ import com.rentacars.repository.TiendaRepository;
 import com.rentacars.service.TiendaService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -34,10 +33,9 @@ import java.util.List;
  *       Eso es la INYECCION DE DEPENDENCIAS: Spring ve el constructor y
  *       nos entrega ya listos el repository y el mapper. No usamos "new".
  *
- *   @Transactional
- *       Todo lo que pase dentro del metodo es una sola operacion en la BD:
- *       o se guarda todo, o no se guarda nada. Si el metodo lanza una
- *       excepcion a la mitad, la BD se revierte sola.
+ *   (Ya no hay @Transactional: DynamoDB no tiene el gestor de transacciones de
+ *   Spring. Cuando dos escrituras deben ir juntas, el repository usa
+ *   TransactWriteItems; ver GuardasUnicas.)
  */
 @Service
 @RequiredArgsConstructor
@@ -63,13 +61,12 @@ public class TiendaServiceImpl implements TiendaService {
      * Este metodo tiene 3 lineas porque asi debe ser: recibir, guardar, devolver.
      */
     @Override
-    @Transactional
     public CreateTiendaResponse crearTienda(CreateTiendaRequest request) {
 
         // 1. Traducir el DTO que llego a una entidad que la BD entienda
         Tienda tienda = tiendaMapper.toEntity(request);
 
-        // 2. Guardar. save() devuelve la entidad ya con el id que asigno PostgreSQL
+        // 2. Guardar. save() devuelve la entidad ya con el id asignado (contador de DynamoDB)
         Tienda tiendaGuardada = tiendaRepository.save(tienda);
 
         // 3. Traducir la entidad guardada al DTO de respuesta
@@ -77,7 +74,6 @@ public class TiendaServiceImpl implements TiendaService {
     }
 
     @Override
-    @Transactional
     public void eliminarTienda(Long id) {
         Tienda tienda = tiendaRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Tienda no encontrada con ID: " + id));
@@ -106,7 +102,6 @@ public class TiendaServiceImpl implements TiendaService {
      *   - Actualizar solo los campos que lleguen en el body.
      */
     @Override
-    @Transactional
     public CreateTiendaResponse actualizarTienda(Long id, UpdateTiendaRequest request) {
         Tienda tienda = tiendaRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Tienda no encontrada con ID: " + id));

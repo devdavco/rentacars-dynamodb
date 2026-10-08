@@ -11,7 +11,6 @@ import com.rentacars.repository.ClienteRepository;
 import com.rentacars.service.ClienteService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -34,7 +33,6 @@ public class ClienteServiceImpl implements ClienteService {
      *   - La tarjeta nunca se devuelve en la respuesta.
      */
     @Override
-    @Transactional
     public CreateClienteResponse crearCliente(CreateClienteRequest request) {
         if (clienteRepository.existsByEmail(request.getEmail())) {
             throw new BadRequestException("El email ya existe");
@@ -53,7 +51,6 @@ public class ClienteServiceImpl implements ClienteService {
      *   - La tarjeta nunca se devuelve en la respuesta.
      */
     @Override
-    @Transactional
     public CreateClienteResponse actualizarCliente(Long id, UpdateClienteRequest request) {
         Cliente cliente = clienteRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado con ID: " + id));

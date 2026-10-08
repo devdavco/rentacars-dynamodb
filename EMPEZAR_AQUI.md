@@ -1,5 +1,17 @@
 # EMPEZAR AQUÍ
 
+> **Esta copia del proyecto usa Amazon DynamoDB, no PostgreSQL.** Las secciones de esta guía sobre
+> PostgreSQL, JPA y `script_bd.sql` ya no aplican. Para correrlo:
+>
+> ```bash
+> docker compose up -d dynamodb-local
+> AWS_DYNAMODB_ENDPOINT=http://localhost:8000 AWS_ACCESS_KEY_ID=local AWS_SECRET_ACCESS_KEY=local ./mvnw spring-boot:run
+> ```
+>
+> Las tablas se crean solas al arrancar (`config/DynamoDbTableInitializer`). Los repositorios son clases en
+> `repository/` con los mismos métodos de antes (`findById`, `save`, `existsBy...`). Para pasar los datos
+> de PostgreSQL usa `migracion/migrar_postgres_a_dynamo.py` (instrucciones en su encabezado).
+
 Guía para los 7 del equipo. Léela completa una vez (10 minutos) antes de escribir código.
 
 El **Día 0 ya está hecho**: la configuración, las 6 entidades, el manejo de errores y la **HU-01 completa como ejemplo**. Tu trabajo es copiar ese ejemplo para tu HU.

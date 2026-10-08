@@ -1,37 +1,39 @@
 package com.rentacars.model;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
 import lombok.*;
+import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbAttribute;
+import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbBean;
+import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbConvertedBy;
+import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbPartitionKey;
+import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbSecondaryPartitionKey;
+import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbSecondarySortKey;
 
 /**
- * Tabla "alquileres".
+ * Tabla DynamoDB "alquileres".
+ *
+ *   PK:  id_alquiler (N)
+ *   GSI: id_cliente-index -> PK id_cliente (N), SK fecha_inicio (S)  (HU-20)
+ *   GSI: id_auto-index    -> PK id_auto (N)                          (HU-13: 409)
+ *   GSI: estado-index     -> PK estado (S), SK fecha_fin (S)         (HU-21)
+ *
+ * Las fechas se guardan como texto ISO (2025-07-05), que ordena igual que la
+ * fecha: por eso "fecha_fin >= hoy" se resuelve con una Query sobre estado-index.
  *
  * SOBRE EL CAMPO estado:
- * Solo admite "ACTIVO" o "CERRADO" (la BD tiene un CHECK que lo obliga).
+ * Solo admite "ACTIVO" o "CERRADO".
  *   - HU-18 crea el alquiler con estado = "ACTIVO"
  *   - HU-24 lo pasa a "CERRADO" al registrar la devolucion
  *   - HU-21 lista solo los que estan en "ACTIVO"
- * Si guardan cualquier otro texto, PostgreSQL rechaza el insert.
+ * DynamoDB no tiene CHECKs: estas reglas (y fecha_fin >= fecha_inicio,
+ * precio_total >= 0) las garantizan el service y el mapper.
  *
- * RESTRICCIONES QUE YA VALIDA LA BASE DE DATOS:
- *   - fecha_fin >= fecha_inicio
- *   - precio_total >= 0
- * Aun asi conviene validarlas en el service para devolver un 400 con
- * mensaje entendible en vez de un error de PostgreSQL.
- *
- * precio_total es DECIMAL(10,2) -> BigDecimal en Java (ver Detalle_auto
+ * precio_total era DECIMAL(10,2) -> BigDecimal en Java (ver DetalleAuto
  * para los ejemplos de como se hacen los calculos).
  */
-@Entity
-@Table(name = "alquileres")
+@DynamoDbBean
 @Getter
 @Setter
 @Data
@@ -40,33 +42,35 @@ import lombok.*;
 @AllArgsConstructor
 public class Alquiler {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id_alquiler")
+    @Getter(onMethod_ = {@DynamoDbPartitionKey, @DynamoDbAttribute("id_alquiler")})
     private Long idAlquiler;
 
-    @Column(name = "id_cliente", nullable = false)
+    @Getter(onMethod_ = {@DynamoDbSecondaryPartitionKey(indexNames = "id_cliente-index"),
+            @DynamoDbAttribute("id_cliente")})
     private Long idCliente;
 
-    @Column(name = "id_auto", nullable = false)
+    @Getter(onMethod_ = {@DynamoDbSecondaryPartitionKey(indexNames = "id_auto-index"),
+            @DynamoDbAttribute("id_auto")})
     private Long idAuto;
 
-    @Column(name = "fecha_inicio", nullable = false)
+    @Getter(onMethod_ = {@DynamoDbSecondarySortKey(indexNames = "id_cliente-index"),
+            @DynamoDbAttribute("fecha_inicio")})
     private LocalDate fechaInicio;
 
-    @Column(name = "fecha_fin", nullable = false)
+    @Getter(onMethod_ = {@DynamoDbSecondarySortKey(indexNames = "estado-index"),
+            @DynamoDbAttribute("fecha_fin")})
     private LocalDate fechaFin;
 
-    @Column(name = "precio_total", nullable = false, precision = 10, scale = 2)
+    @Getter(onMethod_ = {@DynamoDbAttribute("precio_total"), @DynamoDbConvertedBy(Decimal2Converter.class)})
     private BigDecimal precioTotal;
 
-    @Column(name = "ciudad_retirada", nullable = false, length = 50)
+    @Getter(onMethod_ = @DynamoDbAttribute("ciudad_retirada"))
     private String ciudadRetirada;
 
-    @Column(name = "ciudad_devolucion", nullable = false, length = 50)
+    @Getter(onMethod_ = @DynamoDbAttribute("ciudad_devolucion"))
     private String ciudadDevolucion;
 
     /** Solo "ACTIVO" o "CERRADO" */
-    @Column(nullable = false, length = 20)
+    @Getter(onMethod_ = @DynamoDbSecondaryPartitionKey(indexNames = "estado-index"))
     private String estado;
 }

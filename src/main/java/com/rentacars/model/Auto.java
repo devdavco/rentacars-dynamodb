@@ -1,19 +1,21 @@
 package com.rentacars.model;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
 import lombok.*;
+import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbAttribute;
+import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbBean;
+import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbPartitionKey;
+import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbSecondaryPartitionKey;
 
 /**
- * Tabla "autos".
+ * Tabla DynamoDB "autos".
  *
- * MUY IMPORTANTE -- ESTA TABLA TIENE SOLO 4 COLUMNAS.
+ *   PK:  id_auto (N)
+ *   GSI: id_tienda-index    -> PK id_tienda (N)     (HU-04 y HU-09 por ciudad)
+ *   GSI: id_categoria-index -> PK id_categoria (N)  (HU-09 por categoria)
+ *
+ * MUY IMPORTANTE -- ESTE ITEM TIENE SOLO 4 ATRIBUTOS.
  * La marca, el modelo, el anio, la placa, el precio y la imagen NO estan aqui:
- * viven en la tabla detalles_autos (clase Detalle_auto).
+ * viven en la tabla detalles_autos (clase DetalleAuto).
  *
  * "autos"          -> la unidad fisica y sus relaciones (que tienda, que categoria,
  *                     si esta disponible)
@@ -22,14 +24,12 @@ import lombok.*;
  * Por eso HU-08 (registrar auto con detalles) guarda en DOS tablas, y HU-12
  * (ver detalle completo) tiene que leer de las DOS y combinarlas.
  *
- * SOBRE LAS LLAVES FORANEAS (idTienda, idCategoria):
- * Se guardan como numeros simples (Long), no como objetos Tienda/Categoria.
- * Es la forma mas sencilla, coincide con los DTOs del backlog
- * ("id_tienda": 1) y evita errores tipicos de JPA como
- * LazyInitializationException o JSON infinito.
+ * SOBRE LAS "LLAVES FORANEAS" (idTienda, idCategoria):
+ * Se guardan como numeros simples (Long). DynamoDB no valida FKs: lo hacen
+ * los services (AutoServiceImpl.createAuto valida que existan; TiendaServiceImpl
+ * no deja borrar una tienda con autos).
  */
-@Entity
-@Table(name = "autos")
+@DynamoDbBean
 @Getter
 @Setter
 @Data
@@ -38,19 +38,17 @@ import lombok.*;
 @AllArgsConstructor
 public class Auto {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id_auto")
+    @Getter(onMethod_ = {@DynamoDbPartitionKey, @DynamoDbAttribute("id_auto")})
     private Long idAuto;
 
-    // En la BD tiene DEFAULT TRUE, pero HU-08 debe ponerlo en true
-    // explicitamente al crear el auto.
-    @Column(nullable = false)
+    // HU-08 debe ponerlo en true explicitamente al crear el auto.
     private Boolean disponibilidad;
 
-    @Column(name = "id_tienda", nullable = false)
+    @Getter(onMethod_ = {@DynamoDbSecondaryPartitionKey(indexNames = "id_tienda-index"),
+            @DynamoDbAttribute("id_tienda")})
     private Long idTienda;
 
-    @Column(name = "id_categoria", nullable = false)
+    @Getter(onMethod_ = {@DynamoDbSecondaryPartitionKey(indexNames = "id_categoria-index"),
+            @DynamoDbAttribute("id_categoria")})
     private Long idCategoria;
 }

@@ -1,26 +1,31 @@
 package com.rentacars.model;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbAttribute;
+import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbBean;
+import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbConvertedBy;
+import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbPartitionKey;
 
 /**
- * Tabla "detalles_autos".
+ * Tabla DynamoDB "detalles_autos".
  *
- * Aqui vive TODA la ficha del vehiculo: marca, modelo, anio, placa,
- * precio por dia, oferta e imagen. Se relaciona con Auto por idAuto.
+ *   PK: id_auto (N)   <- OJO: la PK es el id del AUTO, no id_detalles_autos.
+ *
+ * La relacion con Auto es 1 a 1 y siempre se busca "el detalle del auto X"
+ * (findByIdAuto). Usar id_auto como PK convierte esa busqueda en un GetItem
+ * directo, sin indices. id_detalles_autos se conserva como atributo normal.
+ *
+ * La placa es UNICA: Detalle_autoRepository lo garantiza con una guarda en
+ * la tabla "unicos" (DynamoDB no tiene UNIQUE).
  *
  * SOBRE BigDecimal:
- * precio_dia y oferta_porcentaje son DECIMAL(10,2) en PostgreSQL, asi que
- * en Java se usa BigDecimal (NO double). Con dinero, double da errores de
+ * precio_dia y oferta_porcentaje eran DECIMAL(10,2) en PostgreSQL. En DynamoDB
+ * son numeros (N) y Decimal2Converter los devuelve con 2 decimales.
+ * En Java se usa BigDecimal (NO double). Con dinero, double da errores de
  * redondeo. La diferencia practica es que no se usan los operadores * - + :
  *
  *     double:     total = precio * dias;
@@ -36,7 +41,7 @@ import lombok.Setter;
  * Ejemplo real, el calculo de HU-12 (precio con oferta):
  *
  *     BigDecimal oferta = detalle.getOfertaPorcentaje();
- *     if (oferta == null) oferta = BigDecimal.ZERO;   // la columna admite null
+ *     if (oferta == null) oferta = BigDecimal.ZERO;   // el atributo admite null
  *
  *     BigDecimal descuento = detalle.getPrecioDia()
  *             .multiply(oferta)
@@ -44,43 +49,35 @@ import lombok.Setter;
  *
  *     BigDecimal precioConOferta = detalle.getPrecioDia().subtract(descuento);
  */
-@Entity
-@Table(name = "detalles_autos")
+@DynamoDbBean
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 public class DetalleAuto {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id_detalles_autos")
+    @Getter(onMethod_ = @DynamoDbAttribute("id_detalles_autos"))
     private Long idDetallesAutos;
 
-    @Column(length = 2000)
     private String imagen;
 
-    @Column(nullable = false, length = 50)
     private String modelo;
 
-    @Column(nullable = false, length = 50)
     private String marca;
 
-    @Column(nullable = false, length = 4)
     private String anio;
 
-    @Column(nullable = false, unique = true, length = 20)
     private String placa;
 
-    // La BD exige precio_dia > 0
-    @Column(name = "precio_dia", nullable = false, precision = 10, scale = 2)
+    // Debe ser > 0 (lo valida CreateAutoRequest con @Positive)
+    @Getter(onMethod_ = {@DynamoDbAttribute("precio_dia"), @DynamoDbConvertedBy(Decimal2Converter.class)})
     private BigDecimal precioDia;
 
     // PUEDE SER NULL (auto sin oferta). Siempre revisar null antes de calcular.
-    // La BD exige que este entre 0 y 100.
-    @Column(name = "oferta_porcentaje", precision = 10, scale = 2)
+    // Debe estar entre 0 y 100.
+    @Getter(onMethod_ = {@DynamoDbAttribute("oferta_porcentaje"), @DynamoDbConvertedBy(Decimal2Converter.class)})
     private BigDecimal ofertaPorcentaje;
 
-    @Column(name = "id_auto", nullable = false)
+    @Getter(onMethod_ = {@DynamoDbPartitionKey, @DynamoDbAttribute("id_auto")})
     private Long idAuto;
 }

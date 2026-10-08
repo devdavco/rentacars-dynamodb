@@ -17,7 +17,6 @@ import com.rentacars.service.CategoriaService;
 import com.rentacars.service.TiendaService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 // repo para chequear alquileres
 import com.rentacars.repository.AlquilerRepository;
@@ -64,7 +63,6 @@ public class AutoServiceImpl implements AutoService {
 
     //HU-10
     @Override
-    @Transactional
     public CreateAutoResponse actualizarDetalles(Long id, UpdateDetalleAutoRequest request) {
         Auto auto = autoRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Auto no encontrado con ID: " + id));
@@ -100,7 +98,6 @@ public class AutoServiceImpl implements AutoService {
  
     //HU-11
    @Override
-   @Transactional
    public CreateAutoResponse actualizarDisponibilidad (Long id, UpdateAutoRequest request){
        Auto auto = autoRepository.findById(id)
                .orElseThrow(() -> new ResourceNotFoundException("Auto no encontrado con ID:"+ id));
@@ -134,9 +131,8 @@ public class AutoServiceImpl implements AutoService {
     //   1. Valida tienda y categoria (404 si no existen) inyectando los services.
     //   2. Guarda primero en "autos" (disponibilidad = true siempre) para obtener el id_auto.
     //   3. Guarda "detalles_autos" con ese id_auto.
-    // Todo en una sola transaccion: si falla el detalle, se revierte tambien el auto.
+    // Si falla el detalle, se borra tambien el auto (compensacion, DynamoDB no hace rollback).
     @Override
-    @Transactional
     public CreateAutoResponse createAuto(CreateAutoRequest createAutoRequest) throws Exception {
 
         tiendaService.getTiendaById(createAutoRequest.getIdTienda());
@@ -146,7 +142,14 @@ public class AutoServiceImpl implements AutoService {
         auto = autoRepository.save(auto);
 
         DetalleAuto detalle = AutoMapper.createAutoRequestToDetalleEntity(createAutoRequest, auto.getIdAuto());
-        detalle = detalleAutoRepository.save(detalle);
+        try {
+            detalle = detalleAutoRepository.save(detalle);
+        } catch (RuntimeException ex) {
+            // DynamoDB no hace rollback: si falla el detalle (ej. placa repetida),
+            // se borra el auto recien creado para no dejarlo huerfano.
+            autoRepository.delete(auto);
+            throw ex;
+        }
 
         return AutoMapper.entityToCreateAutoResponseConDetalle(auto, detalle);
     }
@@ -154,7 +157,6 @@ public class AutoServiceImpl implements AutoService {
     //metodo para eliminar auto
     // HU-13 (Cardona): borra detalle y auto en cascada
     @Override
-    @Transactional // une los dos deletes
     public void deleteAuto(Long id) {
 
         //busca auto por id, 404 si no existe

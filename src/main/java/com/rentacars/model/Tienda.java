@@ -1,44 +1,54 @@
 package com.rentacars.model;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import java.util.Locale;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbAttribute;
+import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbBean;
+import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbPartitionKey;
+import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbSecondaryPartitionKey;
 
 /**
- * Tabla "tiendas" (ver script_bd.sql).
+ * Tabla DynamoDB "tiendas".
  *
- * Entidad JPA = una clase que representa una tabla de la base de datos.
- * Cada atributo de la clase es una columna de la tabla.
+ *   PK:  id_tienda (N)
+ *   GSI: ciudad-index -> PK ciudad_lower (S)   (HU-03: filtro por ciudad sin
+ *                                               importar mayusculas)
  *
- * OJO: la app corre en modo validate. Si cambias un campo aqui sin
- * cambiar la tabla en script_bd.sql, la aplicacion NO arranca.
+ * Las anotaciones de DynamoDB van en los GETTERS; con Lombok se ponen con
+ * @Getter(onMethod_ = ...). @DynamoDbAttribute fija el nombre del atributo
+ * en snake_case (los mismos nombres que tenian las columnas en PostgreSQL).
  */
-@Entity                      // Le dice a Spring: "esto es una tabla"
-@Table(name = "tiendas")     // Nombre exacto de la tabla en PostgreSQL
-@Getter                      // Lombok genera los getters (getNombre(), etc.)
-@Setter                      // Lombok genera los setters (setNombre(), etc.)
-@NoArgsConstructor           // Constructor vacio: new Tienda()  -- JPA lo exige
-@AllArgsConstructor          // Constructor con todos los campos
+@DynamoDbBean
+@Getter
+@Setter
+@NoArgsConstructor           // Constructor vacio: new Tienda() -- el Enhanced Client lo exige
+@AllArgsConstructor
 public class Tienda {
 
-    @Id                                                  // Llave primaria
-    @GeneratedValue(strategy = GenerationType.IDENTITY)  // BIGSERIAL: la BD asigna el id sola
-    @Column(name = "id_tienda")
+    @Getter(onMethod_ = {@DynamoDbPartitionKey, @DynamoDbAttribute("id_tienda")})
     private Long idTienda;
 
-    @Column(nullable = false, length = 70)
     private String nombre;
 
-    @Column(nullable = false, length = 50)
     private String ciudad;
 
-    @Column(nullable = false, length = 70)
     private String direccion;
+
+    /**
+     * Copia de la ciudad en minusculas, solo para el indice ciudad-index.
+     * Se calcula sola a partir de "ciudad", asi nunca queda desactualizada.
+     * No sale en el JSON (los DTO no la tienen).
+     */
+    @DynamoDbSecondaryPartitionKey(indexNames = "ciudad-index")
+    @DynamoDbAttribute("ciudad_lower")
+    public String getCiudadLower() {
+        return ciudad == null ? null : ciudad.toLowerCase(Locale.ROOT);
+    }
+
+    /** El Enhanced Client necesita un setter; el valor real se deriva de ciudad. */
+    public void setCiudadLower(String ignorado) {
+    }
 }
