@@ -30,26 +30,6 @@ services:
     depends_on:
       - dynamodb-local
 
-  # PostgreSQL original: SOLO como origen del script de migracion.
-  # Se levanta con:  docker compose --profile migracion up -d postgres
-  postgres:
-    image: postgres:16-alpine
-    container_name: postgres-alquilerautos-migracion
-    profiles: ["migracion"]
-    environment:
-      POSTGRES_DB: alquilerautos_db
-      POSTGRES_USER: cloud_usr
-      POSTGRES_PASSWORD: cloud_pwd
-    ports:
-      - "5434:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U cloud_usr -d alquilerautos_db"]
-      interval: 5s
-      retries: 5
 
 volumes:
   dynamodata:
-  pgdata:
